@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Healthcare Claims Processing &amp; Translation Workbench | Google Cloud</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <!-- Top Application Header -->
+  <header class="app-header">
+    <div class="brand-group">
+      <div class="brand-logo" aria-hidden="true">⚕️</div>
+      <div>
+        <h1>Healthcare Claims Intake, Translation &amp; AI Adjudication</h1>
+        <p class="brand-subtitle">
+          Google Cloud Storage &bull; Document AI &bull; Cloud Translation API v3 &bull; Gemini 3.8 Flash &bull; Firebase Firestore
+        </p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="project-pill" title="Target Google Cloud Project">
+        <span class="dot-live"></span>
+        <span>Project: <strong id="header-project-id">GCP Project</strong></span>
+      </div>
+      <button id="btn-process-all" class="btn btn-primary" type="button">
+        ⚡ Process All 4 Test Docs (EN / ES / FR / KO)
+      </button>
+      <button id="btn-health-modal" class="btn btn-outline" type="button">
+        ☁️ GCP Service Status
+      </button>
+    </div>
+  </header>
+
+  <!-- Main 2-Column Layout -->
+  <main class="workbench-layout">
+    <!-- Left Column: Upload, Multi-Language Test Suite, and Firestore History -->
+    <aside class="sidebar-panel">
+      <!-- Upload Custom PDF Section -->
+      <section class="panel-card">
+        <div class="card-header">
+          <h2>1. Upload Healthcare Claim PDF</h2>
+          <span class="badge badge-neutral">PDF Intake</span>
+        </div>
+        <p class="card-helper">
+          Upload itemized medical bills (coded or uncoded), insurance cards, policy details, proof of payment, medical records, referrals, or prior authorizations in any language.
+        </p>
+        <form id="upload-form" class="upload-zone">
+          <input id="pdf-file-input" type="file" accept=".pdf,application/pdf" hidden />
+          <div id="drop-area" class="drop-area" tabindex="0" role="button" aria-label="Select or drop a PDF file to process">
+            <div class="drop-icon">📄</div>
+            <div class="drop-title" id="drop-title">Drop PDF here or click to browse</div>
+            <div class="drop-hint">Automatically stores in GCS, checks language, translates non-English to Clean English PDF, and extracts claim data</div>
+          </div>
+          <button id="btn-upload-submit" type="submit" class="btn btn-primary btn-full" disabled>
+            🚀 Upload &amp; Process Claim PDF
+          </button>
+        </form>
+      </section>
+
+      <!-- Multi-Language Realistic Test Documents -->
+      <section class="panel-card">
+        <div class="card-header">
+          <h2>2. Multi-Language Test Suite</h2>
+          <span class="badge badge-teal">4 Languages</span>
+        </div>
+        <p class="card-helper">
+          Click any realistic test PDF below to run the live pipeline (English processes directly; Spanish, French, and Korean translate to a Clean English PDF first):
+        </p>
+        <div id="sample-list" class="sample-list">
+          <!-- Populated dynamically by app.js -->
+        </div>
+      </section>
+
+      <!-- Processed Claims in Firebase / Firestore -->
+      <section class="panel-card">
+        <div class="card-header">
+          <h2>3. Processed Claims (Firestore)</h2>
+          <span id="history-count-badge" class="badge badge-neutral">0</span>
+        </div>
+        <div id="claims-history-list" class="history-list">
+          <div class="empty-hint">No claims processed yet. Select a test document above or upload a PDF.</div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Right Column: Active Claim Workbench -->
+    <section class="main-stage">
+      <!-- Loading Overlay Banner -->
+      <div id="processing-banner" class="processing-banner hidden" role="status" aria-live="polite">
+        <div class="spinner"></div>
+        <div>
+          <strong id="processing-title">Running Healthcare Claims Pipeline on Google Cloud...</strong>
+          <div id="processing-subtitle" class="processing-sub">
+            Storing initial PDF in Cloud Storage &rarr; Document AI OCR &rarr; Immediate Language Detection &rarr; Conditional Translation &amp; Clean English PDF &rarr; Gemini 3.8 Flash Extraction &rarr; Firestore
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State when no claim is selected -->
+      <div id="empty-workbench" class="empty-workbench">
+        <div class="empty-workbench-inner">
+          <div class="empty-hero-icon">🏥</div>
+          <h2>Ready to Process Multi-Language Healthcare Claims</h2>
+          <p>
+            Select one of the <strong>4 realistic test documents</strong> (English, Spanish, French, or Korean) on the left—or click
+            <strong>"Process All 4 Test Docs"</strong> in the top bar—to inspect the automated language detection, Clean English PDF generation, side-by-side comparison, and CMS-1500 structured extraction.
+          </p>
+          <div class="workflow-Summary-grid">
+            <div class="wf-box">
+              <span class="wf-num">Step 1</span>
+              <strong>Cloud Storage Intake</strong>
+              <p>Stores original PDF in <code id="hero-bucket-uri">gs://$GCS_BUCKET_NAME/originals/</code></p>
+            </div>
+            <div class="wf-box">
+              <span class="wf-num">Step 2 &amp; 3</span>
+              <strong>Immediate Language Check</strong>
+              <p>Document AI + Cloud Translation API v3 detect language immediately upon upload.</p>
+            </div>
+            <div class="wf-box">
+              <span class="wf-num">Step 4</span>
+              <strong>Conditional Translation</strong>
+              <p>English processes normally. Non-English translates to a Clean English PDF for side-by-side comparison.</p>
+            </div>
+            <div class="wf-box">
+              <span class="wf-num">Step 5 &amp; 6</span>
+              <strong>Gemini 3.8 Flash &amp; Firestore</strong>
+              <p>Extracts CPT/HCPCS, ICD-10, policy, and financials from the English doc and saves to Firebase.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Claim Container -->
+      <div id="active-claim-view" class="active-claim-view hidden">
+        <!-- Claim Summary Header Bar -->
+        <div class="claim-top-bar">
+          <div>
+            <div class="claim-breadcrumbs">
+              <span id="active-claim-id" class="mono-id">CLM-...</span>
+              <span>&bull;</span>
+              <span id="active-claim-filename">filename.pdf</span>
+              <span>&bull;</span>
+              <span id="active-lang-badge" class="badge badge-teal">Language</span>
+              <span id="active-translation-badge" class="badge badge-amber">Translation Status</span>
+            </div>
+            <h2 id="active-patient-header">Patient &mdash; Facility</h2>
+          </div>
+          <div class="readiness-pill-box">
+            <div class="readiness-score-circle" id="readiness-score-circle">100</div>
+            <div>
+              <div class="readiness-label">CMS-1500 Readiness</div>
+              <div id="readiness-status-text" class="readiness-status-text">READY_FOR_ADJUDICATION</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6-Step Pipeline Execution Trace -->
+        <div class="pipeline-stepper-card">
+          <div class="stepper-title">Pipeline Execution Trace (Project: <code id="stepper-project-id">GCP Project</code>)</div>
+          <div id="pipeline-steps-grid" class="pipeline-steps-grid">
+            <!-- Populated by app.js -->
+          </div>
+        </div>
+
+        <!-- Main Workbench Navigation Tabs -->
+        <div class="workbench-tabs" role="tablist">
+          <button class="tab-btn active" data-tab="tab-extraction" role="tab" aria-selected="true">
+            📋 Structured Claims Data &amp; Medical Coding
+          </button>
+          <button class="tab-btn" data-tab="tab-comparison" role="tab" aria-selected="false" id="tab-btn-comparison">
+            🔍 Side-by-Side Document Comparison (Original vs. Clean English)
+          </button>
+          <button class="tab-btn" data-tab="tab-json" role="tab" aria-selected="false">
+            🗄️ Firebase / Firestore Record &amp; GCS URIs
+          </button>
+        </div>
+
+        <!-- TAB 1: Structured Claims Extraction & Medical Coding -->
+        <div id="tab-extraction" class="tab-pane active">
+          <!-- Executive Summary & Document Classification -->
+          <div class="exec-summary-banner">
+            <div class="exec-meta">
+              <span class="label-caps">Primary Document Classification</span>
+              <div class="doc-type-badges" id="doc-type-badges"></div>
+            </div>
+            <p id="exec-summary-text" class="exec-summary-text"></p>
+          </div>
+
+          <!-- 4-Card Metadata Grid: Patient, Provider, Insurance Policy, Financial Totals -->
+          <div class="entity-grid">
+            <div class="entity-card">
+              <h3>👤 Patient / Subscriber</h3>
+              <dl id="dl-patient" class="kv-list"></dl>
+            </div>
+            <div class="entity-card">
+              <h3>🏥 Rendering Provider / Facility</h3>
+              <dl id="dl-provider" class="kv-list"></dl>
+            </div>
+            <div class="entity-card">
+              <h3>🛡️ Insurance Policy &amp; Authorization</h3>
+              <dl id="dl-insurance" class="kv-list"></dl>
+            </div>
+            <div class="entity-card">
+              <h3>💳 Financial Summary &amp; Proof of Payment</h3>
+              <dl id="dl-financials" class="kv-list"></dl>
+            </div>
+          </div>
+
+          <!-- Diagnoses (ICD-10-CM) & Clinical Summary Row -->
+          <div class="split-tables-row">
+            <div class="data-card">
+              <div class="card-header">
+                <h3>🩺 ICD-10-CM Diagnoses (CMS-1500 Box 21)</h3>
+                <span class="caption-note">Distinguishes explicit document codes vs. AI-mapped clinical codes</span>
+              </div>
+              <div class="table-scroll">
+                <table class="claims-table">
+                  <thead>
+                    <tr>
+                      <th>Role</th>
+                      <th>ICD-10 Code</th>
+                      <th>Code Source</th>
+                      <th>Clinical Description (English)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-diagnoses"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="data-card">
+              <div class="card-header">
+                <h3>🔬 Clinical Record &amp; Treatment Summary</h3>
+              </div>
+              <dl id="dl-clinical" class="kv-list"></dl>
+            </div>
+          </div>
+
+          <!-- Itemized Procedure & Charge Line Items (CMS-1500 Box 24) -->
+          <div class="data-card">
+            <div class="card-header">
+              <h3>🧾 Itemized Medical Procedures &amp; Services (CMS-1500 Box 24)</h3>
+              <span class="caption-note">Standardized CPT / HCPCS coding &amp; USD conversion ready for adjudication</span>
+            </div>
+            <div class="table-scroll">
+              <table class="claims-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Service Date</th>
+                    <th>CPT / HCPCS</th>
+                    <th>Local Code</th>
+                    <th>Code Source</th>
+                    <th>English Service Description</th>
+                    <th class="num-col">Qty</th>
+                    <th class="num-col">Unit Price</th>
+                    <th class="num-col">Total (Orig)</th>
+                    <th class="num-col">Est. USD</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-line-items"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- CMS-1500 Readiness Checklist & Next Actions -->
+          <div class="split-tables-row">
+            <div class="data-card">
+              <div class="card-header">
+                <h3>✅ CMS-1500 Adjudication Readiness Checklist</h3>
+              </div>
+              <div class="table-scroll">
+                <table class="claims-table">
+                  <thead>
+                    <tr>
+                      <th>CMS-1500 Box</th>
+                      <th>Requirement</th>
+                      <th>Status</th>
+                      <th>Verified Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody-checklist"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="data-card">
+              <div class="card-header">
+                <h3>📌 Recommended Adjudicator Actions</h3>
+              </div>
+              <ul id="ul-next-actions" class="action-list"></ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: Side-by-Side Original vs. Clean English Representation -->
+        <div id="tab-comparison" class="tab-pane">
+          <div class="comparison-toolbar">
+            <div>
+              <h3 id="comparison-heading">Side-by-Side Document Comparison</h3>
+              <p id="comparison-subheading" class="card-helper">
+                Compare the original uploaded document on the left with the translated Clean English Representation on the right.
+              </p>
+            </div>
+            <div class="comparison-mode-switch" role="group" aria-label="Comparison view mode">
+              <button type="button" class="btn btn-sm active" id="btn-mode-both">
+                Split PDF + Segment Diff
+              </button>
+              <button type="button" class="btn btn-sm" id="btn-mode-pdfs">
+                Side-by-Side PDFs Only
+              </button>
+              <button type="button" class="btn btn-sm" id="btn-mode-segments">
+                Aligned Segment Table Only
+              </button>
+            </div>
+          </div>
+
+          <!-- Side-by-Side Embedded PDF Viewers -->
+          <div id="pdf-comparison-grid" class="pdf-comparison-grid">
+            <div class="pdf-pane">
+              <div class="pdf-pane-header">
+                <div>
+                  <span class="badge badge-neutral" id="orig-pdf-lang-tag">Original</span>
+                  <strong id="orig-pdf-title">Original Source PDF</strong>
+                </div>
+                <a id="link-open-orig-pdf" href="#" target="_blank" rel="noopener" class="btn-link">
+                  ↗ Open PDF in New Tab
+                </a>
+              </div>
+              <iframe id="iframe-orig-pdf" class="pdf-frame" title="Original Source Claim PDF"></iframe>
+            </div>
+
+            <div class="pdf-pane">
+              <div class="pdf-pane-header pdf-pane-header-en">
+                <div>
+                  <span class="badge badge-teal">Clean English (EN)</span>
+                  <strong id="trans-pdf-title">Clean English Representation PDF</strong>
+                </div>
+                <a id="link-open-trans-pdf" href="#" target="_blank" rel="noopener" class="btn-link">
+                  ↗ Open Clean English PDF
+                </a>
+              </div>
+              <iframe id="iframe-trans-pdf" class="pdf-frame" title="Clean English Representation PDF"></iframe>
+            </div>
+          </div>
+
+          <!-- Aligned Segment-by-Segment Translation Comparison Table -->
+          <div id="segment-comparison-card" class="data-card">
+            <div class="card-header">
+              <div>
+                <h3>🔄 Aligned Structural Segments (Original Text vs. Clean English Representation)</h3>
+                <p class="card-helper">
+                  Every header, section, table row, and clinical note aligned side-by-side via Google Cloud Translation API v3
+                </p>
+              </div>
+              <input
+                type="search"
+                id="segment-search-input"
+                class="search-input"
+                placeholder="Filter segments (e.g., diagnosis, total, MRI, ulcer)..."
+              />
+            </div>
+            <div class="table-scroll">
+              <table class="claims-table segment-diff-table">
+                <thead>
+                  <tr>
+                    <th style="width: 60px;">Seg #</th>
+                    <th style="width: 120px;">Block Type</th>
+                    <th style="width: 42%;" id="th-orig-lang">Original Document Segment</th>
+                    <th style="width: 42%;">Clean English Representation (en)</th>
+                  </tr>
+                </thead>
+                <tbody id="tbody-segments"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: Raw Firebase / Firestore Document & GCS URIs -->
+        <div id="tab-json" class="tab-pane">
+          <div class="data-card">
+            <div class="card-header">
+              <h3>☁️ Google Cloud Storage &amp; Firebase Firestore Identifiers</h3>
+              <button id="btn-download-json" type="button" class="btn btn-outline btn-sm">
+                ⬇️ Download Claim JSON
+              </button>
+            </div>
+            <dl id="dl-cloud-uris" class="kv-list"></dl>
+          </div>
+          <div class="data-card">
+            <div class="card-header">
+              <h3>🗄️ Complete Firestore Document Payload</h3>
+            </div>
+            <pre id="raw-json-pre" class="json-pre"></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Native HTML5 Dialog for GCP Service Health Telemetry -->
+  <dialog id="health-dialog" class="health-dialog">
+    <div class="dialog-header">
+      <h3>☁️ Google Cloud Services Live Status (<code id="modal-project-id">GCP Project</code>)</h3>
+      <button id="btn-close-dialog" class="btn-icon" type="button" aria-label="Close modal">&times;</button>
+    </div>
+    <div id="health-dialog-body" class="dialog-body">
+      Loading live status...
+    </div>
+  </dialog>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

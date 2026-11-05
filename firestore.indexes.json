@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "claims_documents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "language_detection.language_code", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "claims_documents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "extraction.document_classification.document_type", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

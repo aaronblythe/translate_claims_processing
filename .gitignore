@@ -1,0 +1,56 @@
+# ==============================================================================
+# Environment, Project Specifics & Secrets (DO NOT COMMIT)
+# ==============================================================================
+.env
+.env.*
+!.env.gcp.example
+!.env.example
+.firebaserc
+!.firebaserc.example
+
+# Google Cloud / Firebase Service Account Keys & Credentials
+*service-account*.json
+*credentials*.json
+adc.json
+*.pem
+*.key
+*.p12
+
+# ==============================================================================
+# Runtime Data, Local Mirrors & Firestore Cache
+# ==============================================================================
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# ==============================================================================
+# Python Virtual Environments, Bytecode & Test Caches
+# ==============================================================================
+.venv/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# ==============================================================================
+# Firebase, Cloud SDK & OS Artifacts
+# ==============================================================================
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

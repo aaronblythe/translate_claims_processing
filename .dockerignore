@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.DS_Store
+.env
+.env.*
+.firebaserc
+data/
+*service-account*.json
+*credentials*.json
+adc.json
